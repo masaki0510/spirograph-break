@@ -1,0 +1,369 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#080b11">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>Spirograph Break</title>
+<style>
+  :root{
+    --bg:#080b11; --panel:#0f141d; --panel-2:#141b26; --line:#212b3a;
+    --ink:#cdd8e6; --muted:#6c7a8d; --brass:#e6a23c; --brass-dim:#7a5a23;
+    --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+    --sans:"Helvetica Neue",system-ui,-apple-system,"Hiragino Kaku Gothic ProN",sans-serif;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%}
+  body{background:var(--bg);color:var(--ink);font-family:var(--sans);overflow:hidden;
+    -webkit-user-select:none;user-select:none}
+  canvas{position:fixed;inset:0;width:100%;height:100%;display:block;
+    background:radial-gradient(120% 120% at 50% 44%,#0c121c 0%,#070a10 70%,#05070b 100%)}
+
+  /* ============ スタート画面 ============ */
+  #start{position:fixed;inset:0;z-index:10;display:flex;align-items:safe center;justify-content:center;
+    padding:24px;overflow-y:auto;background:radial-gradient(130% 100% at 50% 30%,#0d141f 0%,#070a10 75%);
+    transition:opacity .5s ease}
+  #start.hide{opacity:0;pointer-events:none}
+  .card{width:100%;max-width:440px}
+  .brand{text-align:center;margin-bottom:30px}
+  .brand .mark{font-size:30px;color:var(--brass);line-height:1}
+  .brand h1{font-size:19px;letter-spacing:.22em;text-transform:uppercase;margin:14px 0 6px;font-weight:600}
+  .brand p{margin:0;color:var(--muted);font-size:13px;letter-spacing:.04em}
+
+  .field{margin-bottom:20px}
+  .field > label{display:block;font-size:11px;letter-spacing:.18em;text-transform:uppercase;
+    color:var(--muted);margin-bottom:11px;font-weight:600}
+  .chips{display:flex;flex-wrap:wrap;gap:8px}
+  .chip{flex:1;min-width:60px;background:var(--panel);border:1px solid var(--line);border-radius:10px;
+    color:var(--ink);padding:12px 6px;font-family:var(--sans);font-size:14px;cursor:pointer;
+    transition:.15s;text-align:center;display:flex;flex-direction:column;align-items:center;gap:6px}
+  .chip .mono{font-family:var(--mono);font-size:15px}
+  .chip small{color:var(--muted);font-size:10px;letter-spacing:.05em}
+  .chip svg{width:26px;height:26px;stroke:var(--muted);fill:none;stroke-width:1.6;transition:.15s}
+  .chip:hover{border-color:var(--brass-dim)}
+  .chip.on{border-color:var(--brass);background:var(--panel-2);color:#fff}
+  .chip.on small{color:var(--brass)}
+  .chip.on svg{stroke:var(--brass)}
+
+  #go{width:100%;margin-top:6px;background:var(--brass);color:#1a1206;border:0;border-radius:12px;
+    padding:16px;font-family:var(--sans);font-size:16px;font-weight:700;letter-spacing:.1em;cursor:pointer;
+    transition:.15s}
+  #go:hover{filter:brightness(1.08)}
+  #go:active{transform:translateY(1px)}
+
+  /* ============ セッション中のUI（最小限） ============ */
+  #hud{position:fixed;top:0;left:0;right:0;z-index:5;display:flex;align-items:center;
+    padding:16px 18px;gap:14px;opacity:0;transition:opacity .4s;
+    background:linear-gradient(#070a10cc,#070a1000)}
+  #hud.show{opacity:1}
+  #hud .icon{width:38px;height:38px;border-radius:10px;border:1px solid var(--line);
+    background:#0f141dcc;color:var(--ink);cursor:pointer;display:flex;align-items:center;justify-content:center;
+    font-size:16px;transition:.15s}
+  #hud .icon:hover{border-color:var(--brass-dim);color:#fff}
+  #clock{flex:1;text-align:center;font-family:var(--mono);font-size:26px;letter-spacing:.06em;color:var(--ink);
+    text-shadow:0 0 18px #000}
+  #clock small{display:block;font-family:var(--sans);font-size:10px;letter-spacing:.22em;
+    text-transform:uppercase;color:var(--muted);margin-top:3px}
+
+  /* 完成オーバーレイ */
+  #done{position:fixed;left:0;right:0;bottom:0;z-index:6;display:flex;flex-direction:column;align-items:center;
+    gap:14px;padding:0 24px 46px;opacity:0;pointer-events:none;transition:opacity .6s;
+    background:linear-gradient(#070a1000,#070a10dd)}
+  #done.show{opacity:1;pointer-events:auto}
+  #done p{margin:0;letter-spacing:.2em;font-size:13px;color:var(--brass);text-transform:uppercase}
+  #done .row{display:flex;gap:10px}
+  #done button{background:var(--panel-2);border:1px solid var(--line);color:var(--ink);border-radius:10px;
+    padding:12px 20px;font-family:var(--sans);font-size:14px;cursor:pointer;transition:.15s}
+  #done button:hover{border-color:var(--brass);color:#fff}
+
+  @media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+
+<canvas id="c"></canvas>
+
+<!-- HUD -->
+<div id="hud">
+  <div class="icon" id="back" title="やめる">‹</div>
+  <div id="clock">--:--<small>のこり</small></div>
+  <div class="icon" id="mute" title="音">♪</div>
+</div>
+
+<!-- 完成 -->
+<div id="done">
+  <p>完成 — おつかれさま</p>
+  <div class="row">
+    <button id="again">もう一回</button>
+    <button id="home">最初へ</button>
+  </div>
+</div>
+
+<!-- スタート画面 -->
+<div id="start">
+  <div class="card">
+    <div class="brand">
+      <div class="mark">◎</div>
+      <h1>Spirograph Break</h1>
+      <p>描き終わるまでが、休憩。</p>
+    </div>
+
+    <div class="field">
+      <label>時間（分）</label>
+      <div class="chips" id="minChips">
+        <button class="chip" data-min="1"><span class="mono">1</span><small>テスト</small></button>
+        <button class="chip on" data-min="5"><span class="mono">5</span><small>min</small></button>
+        <button class="chip" data-min="10"><span class="mono">10</span><small>min</small></button>
+        <button class="chip" data-min="15"><span class="mono">15</span><small>min</small></button>
+        <button class="chip" data-min="25"><span class="mono">25</span><small>min</small></button>
+      </div>
+    </div>
+
+    <div class="field">
+      <label>描画</label>
+      <div class="chips" id="modeChips">
+        <button class="chip on" data-mode="2d"><span class="mono">2D</span><small>平面</small></button>
+        <button class="chip" data-mode="3d"><span class="mono">3D</span><small>立体</small></button>
+      </div>
+    </div>
+
+    <div class="field">
+      <label>形</label>
+      <div class="chips" id="shapeChips">
+        <button class="chip on" data-shape="circle">
+          <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/></svg><small>円</small></button>
+        <button class="chip" data-shape="triangle">
+          <svg viewBox="0 0 24 24"><path d="M12 3 L21 19 L3 19 Z"/></svg><small>三角</small></button>
+        <button class="chip" data-shape="square">
+          <svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="1"/></svg><small>四角</small></button>
+      </div>
+    </div>
+
+    <div class="field">
+      <label>対称</label>
+      <div class="chips" id="symChips">
+        <button class="chip on" data-sym="sym">
+          <svg viewBox="0 0 24 24"><path d="M12 4v16M4 12h16M6.3 6.3l11.4 11.4M17.7 6.3L6.3 17.7"/></svg><small>シンメトリー</small></button>
+        <button class="chip" data-sym="asym">
+          <svg viewBox="0 0 24 24"><path d="M3 14 Q7 5 11 13 T19 10" fill="none"/></svg><small>アシンメトリー</small></button>
+      </div>
+    </div>
+
+    <button id="go">スタート</button>
+  </div>
+</div>
+
+<script>
+const cv=document.getElementById('c'), ctx=cv.getContext('2d');
+let DPR=Math.min(window.devicePixelRatio||1,2), W=0,H=0, baseR=200;
+const SAMPLES=3000;
+const reduce=matchMedia('(prefers-reduced-motion:reduce)').matches;
+
+// ---- 選択状態 ----
+const sel={min:5, mode:'2d', shape:'circle', sym:'sym'};
+function wireChips(id,key,cast){
+  document.querySelectorAll('#'+id+' .chip').forEach(b=>{
+    b.addEventListener('click',()=>{
+      document.querySelectorAll('#'+id+' .chip').forEach(x=>x.classList.remove('on'));
+      b.classList.add('on');
+      sel[key]=cast?cast(b.dataset[key]):b.dataset[key];
+    });
+  });
+}
+wireChips('minChips','min',v=>+v);
+wireChips('modeChips','mode');
+wireChips('shapeChips','shape');
+wireChips('symChips','sym');
+
+// ---- 多角形の半径（外接半径=1に正規化、辺はまっすぐ）----
+function polyR(theta,sides){
+  const seg=2*Math.PI/sides;
+  let a=((theta%seg)+seg)%seg - seg/2;
+  return Math.cos(seg/2)/Math.cos(a);
+}
+
+// ---- 形ごとのプリセット歯車（毎回少しランダム）----
+const pick=a=>a[(Math.random()*a.length)|0];
+const gcd=(a,b)=>{a=Math.abs(a);b=Math.abs(b);while(b){[a,b]=[b,a%b];}return a;};
+const gcdAll=arr=>arr.reduce((g,n)=>gcd(g,n),0);
+// 内側2枚の回転数を決める。差の最大公約数 = 模様の回転対称の回数。
+function innerFreqs(){
+  if(sel.sym==='sym'){
+    const k=pick([5,6,7,8]);          // 差が全部kの倍数 → k回対称のロゼット
+    return [1+k, 1-2*k];
+  }
+  let f2,f3,t=0;                       // 差が互いに素 → 対称性なし → うねる有機的な曲線
+  do{ f2=pick([4,5,8,9,10,11]); f3=-pick([3,7,9,11,13]); t++; }
+  while(gcdAll([f2-1,f3-1,f3-f2])!==1 && t<30);
+  return [f2,f3];
+}
+let gears=[], mode3d=false;
+function buildGears(){
+  mode3d = sel.mode==='3d';
+  const sides = sel.shape==='triangle'?3 : sel.shape==='square'?4 : 0;
+  const [f2,f3]=innerFreqs();
+  gears=[
+    {r:0.60, f:1,   sides:sides, tilt:0},
+    {r:0.26, f:f2,  sides:0,     tilt:34},
+    {r:0.13, f:f3,  sides:0,     tilt:62},
+  ];
+}
+
+// ---- 1点を計算（正規化座標、baseRは投影時にかける）----
+function pointAt(t){
+  let x=0,y=0,z=0;
+  for(const g of gears){
+    const ang=g.f*t;
+    const rr=(g.sides>=3? g.r*polyR(ang,g.sides) : g.r);
+    const cx=rr*Math.cos(ang), cy=rr*Math.sin(ang);
+    if(mode3d){const tl=g.tilt*Math.PI/180; x+=cx; y+=cy*Math.cos(tl); z+=cy*Math.sin(tl);}
+    else {x+=cx; y+=cy;}
+  }
+  return {x,y,z};
+}
+let pts=[];
+function precompute(){
+  pts=new Array(SAMPLES+1);
+  for(let i=0;i<=SAMPLES;i++) pts[i]=pointAt(i/SAMPLES*Math.PI*2);
+}
+
+// ---- 投影 ----
+let yaw=0;
+function project(p){
+  if(!mode3d) return {sx:p.x*baseR, sy:p.y*baseR, depth:0};
+  let x=p.x*Math.cos(yaw)+p.z*Math.sin(yaw);
+  let z=-p.x*Math.sin(yaw)+p.z*Math.cos(yaw);
+  const b=0.42, y=p.y;
+  let y2=y*Math.cos(b)-z*Math.sin(b);
+  let z2=y*Math.sin(b)+z*Math.cos(b);
+  const d=3.4, s=d/(d-z2);
+  return {sx:x*s*baseR, sy:y2*s*baseR, depth:z2};
+}
+
+// ---- 描画 ----
+let hue=0;
+function draw(head){
+  ctx.clearRect(0,0,W,H);
+  ctx.save(); ctx.translate(W/2,H/2);
+  const upto=Math.floor(head);
+  ctx.globalCompositeOperation='lighter';
+  ctx.lineWidth=mode3d?1.4:1.7; ctx.lineCap='round'; ctx.lineJoin='round';
+  let prev=project(pts[0]);
+  for(let i=1;i<=upto;i++){
+    const cur=project(pts[i]);
+    const h=(i/SAMPLES*300+hue)%360;
+    let a=0.9;
+    if(mode3d){a=0.35+0.6*(cur.depth*0.5+0.5); a=Math.max(0.12,Math.min(0.95,a));}
+    ctx.strokeStyle=`hsla(${h},85%,62%,${a})`;
+    ctx.beginPath(); ctx.moveTo(prev.sx,prev.sy); ctx.lineTo(cur.sx,cur.sy); ctx.stroke();
+    prev=cur;
+  }
+  // ペン先
+  if(upto>0 && upto<SAMPLES){
+    const f=head-upto, p0=pts[upto], p1=pts[Math.min(upto+1,SAMPLES)];
+    const tip=project({x:p0.x+(p1.x-p0.x)*f, y:p0.y+(p1.y-p0.y)*f, z:p0.z+(p1.z-p0.z)*f});
+    ctx.globalCompositeOperation='source-over';
+    ctx.fillStyle='#fff'; ctx.shadowColor='#fff'; ctx.shadowBlur=12;
+    ctx.beginPath(); ctx.arc(tip.sx,tip.sy,3,0,Math.PI*2); ctx.fill(); ctx.shadowBlur=0;
+  }
+  ctx.restore();
+}
+
+// ============ 音（Web Audioでカタカタを合成）============
+let actx,master,noiseBuf,muted=false,kataTimer=null;
+function initAudio(){
+  if(actx) {actx.resume(); return;}
+  actx=new (window.AudioContext||window.webkitAudioContext)();
+  master=actx.createGain(); master.gain.value=0.18; master.connect(actx.destination);
+  const len=actx.sampleRate*0.25;
+  noiseBuf=actx.createBuffer(1,len,actx.sampleRate);
+  const d=noiseBuf.getChannelData(0);
+  for(let i=0;i<len;i++) d[i]=Math.random()*2-1;
+}
+function grain(at){                       // 1粒のひっかき音
+  const knock=Math.random()<0.18;         // たまに定規の「コツ」音
+  const src=actx.createBufferSource(); src.buffer=noiseBuf;
+  const dur=0.008+Math.random()*0.016;
+  const bp=actx.createBiquadFilter(); bp.type='bandpass';
+  bp.frequency.value=knock?380+Math.random()*220:1600+Math.random()*2200;
+  bp.Q.value=knock?2:1.1;
+  const g=actx.createGain();
+  g.gain.setValueAtTime(0,at);
+  g.gain.linearRampToValueAtTime(knock?0.5:0.32,at+0.001);
+  g.gain.exponentialRampToValueAtTime(0.0008,at+dur);
+  src.connect(bp); bp.connect(g); g.connect(master);
+  src.start(at,Math.random()*0.18,dur+0.02); src.stop(at+dur+0.03);
+}
+function kataLoop(){
+  if(running && head<SAMPLES){
+    grain(actx.currentTime+0.01);
+    if(Math.random()<0.25) grain(actx.currentTime+0.03+Math.random()*0.03);
+  }
+  kataTimer=setTimeout(kataLoop, 60+Math.random()*90);
+}
+function chime(){                          // 完成のやわらかい音
+  [523.25,659.25,783.99].forEach((f,i)=>{
+    const o=actx.createOscillator(),g=actx.createGain(),t=actx.currentTime+i*0.14;
+    o.type='sine'; o.frequency.value=f;
+    g.gain.setValueAtTime(0,t); g.gain.linearRampToValueAtTime(0.13,t+0.02);
+    g.gain.exponentialRampToValueAtTime(0.0005,t+0.9);
+    o.connect(g); g.connect(master); o.start(t); o.stop(t+1);
+  });
+}
+
+// ============ セッション制御 ============
+let running=false, startT=0, totalMs=0, head=0, raf=0;
+const startEl=document.getElementById('start'),
+      hudEl=document.getElementById('hud'),
+      doneEl=document.getElementById('done'),
+      clockEl=document.getElementById('clock');
+
+function resize(){
+  const r=cv.getBoundingClientRect(); W=r.width; H=r.height;
+  cv.width=W*DPR; cv.height=H*DPR; ctx.setTransform(DPR,0,0,DPR,0,0);
+  baseR=Math.min(W,H)*0.40;
+}
+addEventListener('resize',resize);
+
+function startSession(){
+  buildGears(); precompute(); resize();
+  head=0; yaw=0; hue=0; totalMs=sel.min*60*1000; startT=performance.now(); running=true;
+  startEl.classList.add('hide'); hudEl.classList.add('show'); doneEl.classList.remove('show');
+  initAudio(); if(kataTimer) clearTimeout(kataTimer); kataLoop();
+  cancelAnimationFrame(raf); frame();
+}
+function frame(){
+  if(running){
+    const el=performance.now()-startT;
+    let p=el/totalMs;
+    if(p>=1){p=1; finish();}
+    head=SAMPLES*p;
+    if(mode3d && !reduce) yaw+=0.0035;
+    if(!reduce) hue+=0.12;
+    const rem=Math.max(0,totalMs-el), s=Math.ceil(rem/1000);
+    clockEl.innerHTML=`${String((s/60|0)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}<small>のこり</small>`;
+  }
+  draw(head);
+  raf=requestAnimationFrame(frame);
+}
+function finish(){
+  running=false; head=SAMPLES;
+  clockEl.innerHTML=`00:00<small>かんせい</small>`;
+  doneEl.classList.add('show');
+  if(actx && !muted) chime();
+}
+function goHome(){
+  running=false; cancelAnimationFrame(raf); if(kataTimer)clearTimeout(kataTimer);
+  ctx.clearRect(0,0,W,H);
+  hudEl.classList.remove('show'); doneEl.classList.remove('show'); startEl.classList.remove('hide');
+}
+
+// ---- ボタン ----
+document.getElementById('go').addEventListener('click',startSession);
+document.getElementById('back').addEventListener('click',goHome);
+document.getElementById('home').addEventListener('click',goHome);
+document.getElementById('again').addEventListener('click',startSession);
+document.getElementById('mute').addEventListener('click',e=>{
+  muted=!muted; if(master) master.gain.value=muted?0:0.18;
+  e.target.textContent=muted?'♪̸':'♪'; e.target.style.color=muted?'var(--muted)':'';
+});
+
+resize();
+</script>
