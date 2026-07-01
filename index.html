@@ -75,10 +75,25 @@
     padding:12px 20px;font-family:var(--sans);font-size:14px;cursor:pointer;transition:.15s}
   #done button:hover{border-color:var(--brass);color:#fff}
 
+  /* ============ 進行バー（下部固定） ============ */
+  #progressBar{position:fixed;bottom:0;left:0;right:0;z-index:5;height:2px;
+    background:rgba(230,162,60,.12);opacity:0;transition:opacity .4s;pointer-events:none}
+  #progressBar.show{opacity:1}
+  #progressFill{height:100%;width:0%;background:var(--brass);transition:none;
+    position:relative}
+  #progressKnob{position:absolute;right:-3px;top:50%;transform:translateY(-50%);
+    width:6px;height:6px;border-radius:50%;background:#fff;
+    box-shadow:0 0 4px rgba(255,255,255,.6)}
+
   @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
 
 <canvas id="c"></canvas>
+
+<!-- 進行バー -->
+<div id="progressBar">
+  <div id="progressFill"><div id="progressKnob"></div></div>
+</div>
 
 <!-- HUD -->
 <div id="hud">
@@ -313,7 +328,9 @@ let running=false, startT=0, totalMs=0, head=0, raf=0;
 const startEl=document.getElementById('start'),
       hudEl=document.getElementById('hud'),
       doneEl=document.getElementById('done'),
-      clockEl=document.getElementById('clock');
+      clockEl=document.getElementById('clock'),
+      progressBarEl=document.getElementById('progressBar'),
+      progressFillEl=document.getElementById('progressFill');
 
 function resize(){
   const r=cv.getBoundingClientRect(); W=r.width; H=r.height;
@@ -326,6 +343,7 @@ function startSession(){
   buildGears(); precompute(); resize();
   head=0; yaw=0; hue=0; totalMs=sel.min*60*1000; startT=performance.now(); running=true;
   startEl.classList.add('hide'); hudEl.classList.add('show'); doneEl.classList.remove('show');
+  progressBarEl.classList.add('show'); progressFillEl.style.width='0%';
   initAudio(); if(kataTimer) clearTimeout(kataTimer); kataLoop();
   cancelAnimationFrame(raf); frame();
 }
@@ -339,6 +357,7 @@ function frame(){
     if(!reduce) hue+=0.12;
     const rem=Math.max(0,totalMs-el), s=Math.ceil(rem/1000);
     clockEl.innerHTML=`${String((s/60|0)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}<small>のこり</small>`;
+    progressFillEl.style.width=`${p*100}%`;
   }
   draw(head);
   raf=requestAnimationFrame(frame);
@@ -346,6 +365,7 @@ function frame(){
 function finish(){
   running=false; head=SAMPLES;
   clockEl.innerHTML=`00:00<small>かんせい</small>`;
+  progressFillEl.style.width='100%';
   doneEl.classList.add('show');
   if(actx && !muted) chime();
 }
@@ -353,6 +373,7 @@ function goHome(){
   running=false; cancelAnimationFrame(raf); if(kataTimer)clearTimeout(kataTimer);
   ctx.clearRect(0,0,W,H);
   hudEl.classList.remove('show'); doneEl.classList.remove('show'); startEl.classList.remove('hide');
+  progressBarEl.classList.remove('show');
 }
 
 // ---- ボタン ----
