@@ -147,14 +147,16 @@
     </div>
 
     <div class="field">
-      <label>形</label>
-      <div class="chips" id="shapeChips">
-        <button class="chip on" data-shape="circle">
-          <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/></svg><small>円</small></button>
-        <button class="chip" data-shape="triangle">
-          <svg viewBox="0 0 24 24"><path d="M12 3 L21 19 L3 19 Z"/></svg><small>三角</small></button>
-        <button class="chip" data-shape="square">
-          <svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="1"/></svg><small>四角</small></button>
+      <label>パターン</label>
+      <div class="chips" id="patternChips">
+        <button class="chip on" data-pattern="random">
+          <svg viewBox="0 0 24 24"><path d="M16 3h5v5M4 20L21 3M21 16v5h-5M15 15l6 6M4 4l5 5"/></svg><small>ランダム</small></button>
+        <button class="chip" data-pattern="geo">
+          <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="4"/><circle cx="12" cy="12" r="1" fill="currentColor" stroke="none"/></svg><small>幾何学</small></button>
+        <button class="chip" data-pattern="ripple">
+          <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="2"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="8"/></svg><small>波紋</small></button>
+        <button class="chip" data-pattern="fractal">
+          <svg viewBox="0 0 24 24"><path d="M12 20v-8M12 12L7 7M12 12L17 7M7 7L4 4M7 7L10 4M17 7L14 4M17 7L20 4"/></svg><small>フラクタル</small></button>
       </div>
     </div>
 
@@ -179,7 +181,7 @@ const SAMPLES=3000;
 const reduce=matchMedia('(prefers-reduced-motion:reduce)').matches;
 
 // ---- 選択状態 ----
-const sel={min:5, mode:'2d', shape:'circle', sym:'sym'};
+const sel={min:5, mode:'2d', pattern:'random', sym:'sym'};
 function wireChips(id,key,cast){
   document.querySelectorAll('#'+id+' .chip').forEach(b=>{
     b.addEventListener('click',()=>{
@@ -191,7 +193,7 @@ function wireChips(id,key,cast){
 }
 wireChips('minChips','min',v=>+v);
 wireChips('modeChips','mode');
-wireChips('shapeChips','shape');
+wireChips('patternChips','pattern');
 wireChips('symChips','sym');
 
 // ---- 多角形の半径（外接半径=1に正規化、辺はまっすぐ）----
@@ -219,7 +221,7 @@ function innerFreqs(){
 let gears=[], mode3d=false;
 function buildGears(){
   mode3d = sel.mode==='3d';
-  const sides = sel.shape==='triangle'?3 : sel.shape==='square'?4 : 0;
+  const sides = pick([0,0,0,3,4]); // 円多め、たまに三角・四角
   const [f2,f3]=innerFreqs();
   gears=[
     {r:0.60, f:1,   sides:sides, tilt:0},
@@ -246,6 +248,61 @@ function precompute(){
   for(let i=0;i<=SAMPLES;i++) pts[i]=pointAt(i/SAMPLES*Math.PI*2);
 }
 
+// ---- 波紋パターン ----
+function buildRipple(){
+  mode3d=false;
+  pts=[];
+  const rings=22, ptsPerRing=Math.floor(SAMPLES/rings);
+  const sym=sel.sym==='sym';
+  for(let r=0;r<rings;r++){
+    const radius=(r+1)/rings*0.88;
+    const wobble=sym?0:0.07+Math.random()*0.11;
+    const twist=sym?0:r*0.8+Math.random()*0.6;
+    const count=r===rings-1?SAMPLES+1-pts.length:ptsPerRing;
+    for(let j=0;j<count;j++){
+      const angle=j/ptsPerRing*Math.PI*2;
+      const rx=radius*(1+wobble*Math.cos(angle*2+twist));
+      const ry=radius*(1+wobble*Math.sin(angle*3+twist));
+      pts.push({x:rx*Math.cos(angle),y:ry*Math.sin(angle),z:0,
+                skip:j===0&&r>0});
+    }
+  }
+  while(pts.length<=SAMPLES) pts.push({...pts[pts.length-1],skip:true});
+}
+
+// ---- フラクタル（枝分かれ樹木）パターン ----
+function buildFractal(){
+  mode3d=false;
+  pts=[{x:0,y:0.68,z:0}];
+  const sym=sel.sym==='sym';
+  function branch(x,y,angle,len,depth){
+    if(depth===0||pts.length>=SAMPLES) return;
+    const ex=x+Math.cos(angle)*len, ey=y+Math.sin(angle)*len;
+    pts.push({x:ex,y:ey,z:0});
+    if(depth>1){
+      const sL=sym?0.48:0.30+Math.random()*0.36;
+      const sR=sym?0.48:0.30+Math.random()*0.36;
+      const r=sym?0.67:0.60+Math.random()*0.12;
+      branch(ex,ey,angle-sL,len*r,depth-1);
+      pts.push({x:ex,y:ey,z:0});
+      branch(ex,ey,angle+sR,len*r,depth-1);
+      pts.push({x:x,y:y,z:0});
+    }
+  }
+  branch(0,0.68,-Math.PI/2,0.42,sym?9:10);
+  while(pts.length<=SAMPLES) pts.push({...pts[pts.length-1]});
+}
+
+// ---- パターンルーター ----
+let activePattern='geo';
+function buildPattern(){
+  const p=sel.pattern==='random'?pick(['geo','ripple','fractal']):sel.pattern;
+  activePattern=p;
+  if(p==='geo'){buildGears();precompute();}
+  else if(p==='ripple') buildRipple();
+  else if(p==='fractal') buildFractal();
+}
+
 // ---- 投影 ----
 let yaw=0;
 function project(p){
@@ -270,17 +327,20 @@ function draw(head){
   let prev=project(pts[0]);
   for(let i=1;i<=upto;i++){
     const cur=project(pts[i]);
-    const h=(i/SAMPLES*300+hue)%360;
-    let a=0.9;
-    if(mode3d){a=0.35+0.6*(cur.depth*0.5+0.5); a=Math.max(0.12,Math.min(0.95,a));}
-    ctx.strokeStyle=`hsla(${h},85%,62%,${a})`;
-    ctx.beginPath(); ctx.moveTo(prev.sx,prev.sy); ctx.lineTo(cur.sx,cur.sy); ctx.stroke();
+    if(!pts[i].skip){
+      const h=(i/SAMPLES*300+hue)%360;
+      let a=0.9;
+      if(mode3d){a=0.35+0.6*(cur.depth*0.5+0.5); a=Math.max(0.12,Math.min(0.95,a));}
+      ctx.strokeStyle=`hsla(${h},85%,62%,${a})`;
+      ctx.beginPath(); ctx.moveTo(prev.sx,prev.sy); ctx.lineTo(cur.sx,cur.sy); ctx.stroke();
+    }
     prev=cur;
   }
   // ペン先
   if(upto>0 && upto<SAMPLES){
     const f=head-upto, p0=pts[upto], p1=pts[Math.min(upto+1,SAMPLES)];
-    const tip=project({x:p0.x+(p1.x-p0.x)*f, y:p0.y+(p1.y-p0.y)*f, z:p0.z+(p1.z-p0.z)*f});
+    const tip=project({x:p0.x+(p1.x-p0.x)*f, y:p0.y+(p1.y-p0.y)*f,
+                       z:(p0.z||0)+((p1.z||0)-(p0.z||0))*f});
     ctx.globalCompositeOperation='source-over';
     ctx.fillStyle='#fff'; ctx.shadowColor='#fff'; ctx.shadowBlur=12;
     ctx.beginPath(); ctx.arc(tip.sx,tip.sy,3,0,Math.PI*2); ctx.fill(); ctx.shadowBlur=0;
@@ -347,7 +407,7 @@ function resize(){
 addEventListener('resize',resize);
 
 function startSession(){
-  buildGears(); precompute(); resize();
+  buildPattern(); resize();
   head=0; yaw=0; hue=0; totalMs=sel.min*60*1000; startT=performance.now(); running=true;
   startEl.classList.add('hide'); hudEl.classList.add('show'); doneEl.classList.remove('show');
   progressBarEl.classList.add('show'); progressFillEl.style.width='0%';
