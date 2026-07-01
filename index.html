@@ -59,10 +59,17 @@
     background:#0f141dcc;color:var(--ink);cursor:pointer;display:flex;align-items:center;justify-content:center;
     font-size:16px;transition:.15s}
   #hud .icon:hover{border-color:var(--brass-dim);color:#fff}
-  #clock{flex:1;text-align:center;font-family:var(--mono);font-size:26px;letter-spacing:.06em;color:var(--ink);
-    text-shadow:0 0 18px #000}
+  #clock{flex:1;text-align:center;font-family:var(--mono);font-size:26px;letter-spacing:.06em;
+    font-variant-numeric:tabular-nums;filter:drop-shadow(0 2px 10px rgba(0,0,0,.9))}
+  #clock .digits{
+    background:linear-gradient(180deg,#ffffff 0%,var(--ink) 100%);
+    -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+  #clock .colon{color:var(--brass);animation:colon-blink 1s step-end infinite}
+  #clock.finished .colon{animation:none;opacity:1}
+  @keyframes colon-blink{50%{opacity:0}}
   #clock small{display:block;font-family:var(--sans);font-size:10px;letter-spacing:.22em;
-    text-transform:uppercase;color:var(--muted);margin-top:3px}
+    text-transform:uppercase;color:var(--muted);margin-top:3px;
+    -webkit-text-fill-color:var(--muted)}
 
   /* 完成オーバーレイ */
   #done{position:fixed;left:0;right:0;bottom:0;z-index:6;display:flex;flex-direction:column;align-items:center;
@@ -356,7 +363,8 @@ function frame(){
     if(mode3d && !reduce) yaw+=0.0035;
     if(!reduce) hue+=0.12;
     const rem=Math.max(0,totalMs-el), s=Math.ceil(rem/1000);
-    clockEl.innerHTML=`${String((s/60|0)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}<small>のこり</small>`;
+    const mm=String(s/60|0).padStart(2,'0'), ss=String(s%60).padStart(2,'0');
+    clockEl.innerHTML=`<span class="digits">${mm}</span><span class="colon">:</span><span class="digits">${ss}</span><small>のこり</small>`;
     progressFillEl.style.width=`${p*100}%`;
   }
   draw(head);
@@ -364,7 +372,8 @@ function frame(){
 }
 function finish(){
   running=false; head=SAMPLES;
-  clockEl.innerHTML=`00:00<small>かんせい</small>`;
+  clockEl.classList.add('finished');
+  clockEl.innerHTML=`<span class="digits">00</span><span class="colon">:</span><span class="digits">00</span><small>かんせい</small>`;
   progressFillEl.style.width='100%';
   doneEl.classList.add('show');
   if(actx && !muted) chime();
@@ -373,7 +382,8 @@ function goHome(){
   running=false; cancelAnimationFrame(raf); if(kataTimer)clearTimeout(kataTimer);
   ctx.clearRect(0,0,W,H);
   hudEl.classList.remove('show'); doneEl.classList.remove('show'); startEl.classList.remove('hide');
-  progressBarEl.classList.remove('show');
+  progressBarEl.classList.remove('show'); clockEl.classList.remove('finished');
+  clockEl.innerHTML='--:--<small>のこり</small>';
 }
 
 // ---- ボタン ----
