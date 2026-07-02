@@ -25,7 +25,8 @@
   #start.hide{opacity:0;pointer-events:none}
   .card{width:100%;max-width:440px}
   .brand{text-align:center;margin-bottom:30px}
-  .brand .mark{font-size:30px;color:var(--brass);line-height:1}
+  #preview{width:80px;height:80px;border-radius:50%;display:block;margin:0 auto;
+    background:var(--bg);box-shadow:0 0 0 1px var(--line)}
   .brand h1{font-size:19px;letter-spacing:.22em;text-transform:uppercase;margin:14px 0 6px;font-weight:600}
   .brand p{margin:0;color:var(--muted);font-size:13px;letter-spacing:.04em}
 
@@ -104,7 +105,7 @@
 
 <!-- HUD -->
 <div id="hud">
-  <div class="icon" id="back" title="やめる">‹</div>
+  <div class="icon" id="back" title="やめる">×</div>
   <div id="clock">--:--<small>のこり</small></div>
   <div class="icon" id="mute" title="音">♪</div>
 </div>
@@ -122,7 +123,7 @@
 <div id="start">
   <div class="card">
     <div class="brand">
-      <div class="mark">◎</div>
+      <canvas id="preview"></canvas>
       <h1>Spirograph Break</h1>
       <p>描き終わるまでが、休憩。</p>
     </div>
@@ -130,7 +131,7 @@
     <div class="field">
       <label>時間（分）</label>
       <div class="chips" id="minChips">
-        <button class="chip" data-min="1"><span class="mono">1</span><small>テスト</small></button>
+        <button class="chip" data-min="1"><span class="mono">1</span><small>お試し</small></button>
         <button class="chip on" data-min="5"><span class="mono">5</span><small>min</small></button>
         <button class="chip" data-min="10"><span class="mono">10</span><small>min</small></button>
         <button class="chip" data-min="15"><span class="mono">15</span><small>min</small></button>
@@ -177,6 +178,35 @@ const cv=document.getElementById('c'), ctx=cv.getContext('2d');
 let DPR=Math.min(window.devicePixelRatio||1,2), W=0,H=0, baseR=200;
 const SAMPLES=3000;
 const reduce=matchMedia('(prefers-reduced-motion:reduce)').matches;
+
+// ---- プレビューキャンバス（スタート画面の模様アニメーション）----
+const pv=document.getElementById('preview'), pctx=pv.getContext('2d');
+const pvDPR=Math.min(devicePixelRatio||1,2), pvS=80;
+pv.width=pvS*pvDPR; pv.height=pvS*pvDPR; pctx.setTransform(pvDPR,0,0,pvDPR,0,0);
+const pvR=26; // k=6固定（6弁の花）
+let pvT=0,pvHue=0,pvRaf=0;
+function previewFrame(){
+  pctx.globalCompositeOperation='source-over';
+  pctx.fillStyle='rgba(8,11,17,0.04)';
+  pctx.fillRect(0,0,pvS,pvS);
+  pctx.save(); pctx.translate(pvS/2,pvS/2);
+  pctx.globalCompositeOperation='lighter';
+  pctx.lineWidth=1; pctx.lineCap='round';
+  for(let i=0;i<4;i++){
+    const t0=pvT+i*0.008, t1=t0+0.008;
+    const x0=pvR*(0.60*Math.cos(t0)+0.26*Math.cos(7*t0)+0.13*Math.cos(-11*t0));
+    const y0=pvR*(0.60*Math.sin(t0)+0.26*Math.sin(7*t0)+0.13*Math.sin(-11*t0));
+    const x1=pvR*(0.60*Math.cos(t1)+0.26*Math.cos(7*t1)+0.13*Math.cos(-11*t1));
+    const y1=pvR*(0.60*Math.sin(t1)+0.26*Math.sin(7*t1)+0.13*Math.sin(-11*t1));
+    pctx.strokeStyle=`hsla(${(pvHue+i*18)%360},80%,60%,0.9)`;
+    pctx.beginPath(); pctx.moveTo(x0,y0); pctx.lineTo(x1,y1); pctx.stroke();
+  }
+  pvT+=0.022; pvHue=(pvHue+0.07)%360;
+  pctx.restore();
+  pvRaf=requestAnimationFrame(previewFrame);
+}
+function startPreview(){ if(!reduce) pvRaf=requestAnimationFrame(previewFrame); }
+function stopPreview(){ cancelAnimationFrame(pvRaf); }
 
 // ---- 選択状態 ----
 const sel={min:5, mode:'2d', shape:'circle', sym:'sym'};
@@ -347,7 +377,7 @@ function resize(){
 addEventListener('resize',resize);
 
 function startSession(){
-  buildGears(); precompute(); resize();
+  stopPreview(); buildGears(); precompute(); resize();
   head=0; yaw=0; hue=0; totalMs=sel.min*60*1000; startT=performance.now(); running=true;
   startEl.classList.add('hide'); hudEl.classList.add('show'); doneEl.classList.remove('show');
   progressBarEl.classList.add('show'); progressFillEl.style.width='0%';
@@ -372,10 +402,12 @@ function frame(){
 }
 function finish(){
   running=false; head=SAMPLES;
+  cancelAnimationFrame(raf); clearTimeout(kataTimer);
   clockEl.classList.add('finished');
   clockEl.innerHTML=`<span class="digits">00</span><span class="colon">:</span><span class="digits">00</span><small>かんせい</small>`;
   progressFillEl.style.width='100%';
   doneEl.classList.add('show');
+  startPreview();
   if(actx && !muted) chime();
 }
 function goHome(){
@@ -384,6 +416,7 @@ function goHome(){
   hudEl.classList.remove('show'); doneEl.classList.remove('show'); startEl.classList.remove('hide');
   progressBarEl.classList.remove('show'); clockEl.classList.remove('finished');
   clockEl.innerHTML='--:--<small>のこり</small>';
+  startPreview();
 }
 
 // ---- ボタン ----
@@ -397,4 +430,5 @@ document.getElementById('mute').addEventListener('click',e=>{
 });
 
 resize();
+startPreview();
 </script>

@@ -53,10 +53,7 @@ gh pr merge --squash --delete-branch
 - 音はすべて Web Audio API で合成（ファイル不要）
 - `prefers-reduced-motion` 対応済み
 
-## 残タスク（ロードマップ）
+## 実装済み
 
-- [ ] 進行バー（YouTube Shorts 風、ブラス色・先端に白ノブ）
-- [ ] タイマーのデザイン仕上げ（グラデーション・コロン点滅）
-- [ ] PWA化（manifest.json / service-worker.js / アイコン）
-- [ ] 完成した模様の画像保存／シェア
-- [ ] 一時停止コントロール
+- [x] 進行バー（YouTube Shorts 風、ブラス色・先端に白ノブ）
+- [x] タイマーのデザイン仕上げ（グラデーション・コロン点滅）
